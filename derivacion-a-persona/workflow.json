@@ -1,0 +1,184 @@
+{
+  "name": "Derivacion a persona (plantilla de ejemplo)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "derivacion-a-persona",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000001",
+      "name": "Recibir mensaje del agente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d-cliente",
+              "name": "cliente_id",
+              "value": "={{ $json.body?.cliente_id ?? $json.cliente_id ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d-canal",
+              "name": "canal",
+              "value": "={{ $json.body?.canal ?? $json.canal ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d-mensaje",
+              "name": "mensaje_cliente",
+              "value": "={{ $json.body?.mensaje_cliente ?? $json.mensaje_cliente ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d-respuesta",
+              "name": "respuesta_agente",
+              "value": "={{ $json.body?.respuesta_agente ?? $json.respuesta_agente ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d-confianza",
+              "name": "confianza",
+              "value": "={{ Number($json.body?.confianza ?? $json.confianza ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "d-tema",
+              "name": "tema",
+              "value": "={{ ($json.body?.tema ?? $json.tema ?? \"\").toString().toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "d-derivar",
+              "name": "derivar",
+              "value": "={{ ($json.body?.derivar ?? $json.derivar) === true || Number($json.body?.confianza ?? $json.confianza ?? 0) < 0.6 || ['reclamo', 'legal', 'pago', 'salud'].includes(($json.body?.tema ?? $json.tema ?? '').toString().toLowerCase()) }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000002",
+      "name": "Decidir derivacion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "r-derivar",
+              "leftValue": "={{ $json.derivar }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000003",
+      "name": "Requiere persona",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://tareas.example.com/api/tareas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ titulo: 'Contactar a cliente derivado por el agente', cliente_id: $json.cliente_id, canal: $json.canal, tema: $json.tema, confianza: $json.confianza, mensaje_cliente: $json.mensaje_cliente, respuesta_agente: $json.respuesta_agente, asignado_a: '<TU_PERSONA_RESPONSABLE>' }) }}",
+        "options": {}
+      },
+      "id": "c3000000-0000-4000-8000-000000000004",
+      "name": "Crear tarea para una persona",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [720, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ derivado: true, respuesta: 'Gracias por escribirnos. Una persona de nuestro equipo te contactara a la brevedad.' }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "c3000000-0000-4000-8000-000000000005",
+      "name": "Avisar que lo contactara una persona",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [960, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ derivado: false, respuesta: $json.respuesta_agente }) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "c3000000-0000-4000-8000-000000000006",
+      "name": "Devolver respuesta del agente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [720, 120]
+    }
+  ],
+  "connections": {
+    "Recibir mensaje del agente": {
+      "main": [[{ "node": "Decidir derivacion", "type": "main", "index": 0 }]]
+    },
+    "Decidir derivacion": {
+      "main": [[{ "node": "Requiere persona", "type": "main", "index": 0 }]]
+    },
+    "Requiere persona": {
+      "main": [
+        [
+          { "node": "Crear tarea para una persona", "type": "main", "index": 0 }
+        ],
+        [
+          {
+            "node": "Devolver respuesta del agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear tarea para una persona": {
+      "main": [
+        [
+          {
+            "node": "Avisar que lo contactara una persona",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

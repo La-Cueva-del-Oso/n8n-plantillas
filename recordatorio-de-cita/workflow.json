@@ -1,0 +1,125 @@
+{
+  "name": "Recordatorio de cita (plantilla de ejemplo)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Cada dia a las 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.example.com/citas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fecha",
+              "value": "={{ $now.plus({ days: 1 }).toFormat(\"yyyy-MM-dd\") }}"
+            },
+            { "name": "estado", "value": "confirmada" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Leer citas de manana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "citas",
+        "include": "noOtherFields",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Separar citas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/<VERSION>/<PHONE_NUMBER_ID>/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.telefono, type: 'template', template: { name: '<NOMBRE_PLANTILLA_APROBADA>', language: { code: 'es' }, components: [{ type: 'body', parameters: [{ type: 'text', text: $json.nombre }, { type: 'text', text: $json.fecha }, { type: 'text', text: $json.hora }] }] } }) }}",
+        "options": {
+          "batching": { "batch": { "batchSize": 1, "batchInterval": 1000 } }
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Enviar recordatorio por WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [720, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.example.com/citas/confirmaciones",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ cita_id: $('Separar citas').item.json.id, estado: 'recordatorio_enviado', mensaje_id: $json.messages?.[0]?.id ?? null, enviado_en: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Registrar confirmacion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Cada dia a las 09:00": {
+      "main": [[{ "node": "Leer citas de manana", "type": "main", "index": 0 }]]
+    },
+    "Leer citas de manana": {
+      "main": [[{ "node": "Separar citas", "type": "main", "index": 0 }]]
+    },
+    "Separar citas": {
+      "main": [
+        [
+          {
+            "node": "Enviar recordatorio por WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar recordatorio por WhatsApp": {
+      "main": [
+        [{ "node": "Registrar confirmacion", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}
